@@ -36,8 +36,12 @@ type GraphDBProviderModel struct {
 	Port     types.Int64  `tfsdk:"port"`
 }
 
+const (
+	providerName = "graphdb"
+)
+
 func (p *GraphDBProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "graphdb"
+	resp.TypeName = providerName
 	resp.Version = p.version
 }
 
@@ -166,7 +170,7 @@ func (p *GraphDBProvider) Resources(ctx context.Context) []func() resource.Resou
 
 func (p *GraphDBProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewExampleDataSource,
+		NewRepositoriesDataSource,
 	}
 }
 
@@ -176,4 +180,16 @@ func New(version string) func() provider.Provider {
 			version: version,
 		}
 	}
+}
+
+func unexpectedDataSourceConfigureType(
+	_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse,
+) {
+	resp.Diagnostics.AddError(
+		"Unexpected Data Source Configure Type",
+		fmt.Sprintf(
+			"Expected *Client, got: %T. Please report this issue to the provider developers.",
+			req.ProviderData,
+		),
+	)
 }
