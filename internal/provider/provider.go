@@ -5,72 +5,166 @@ package provider
 
 import (
 	"context"
-	"net/http"
+	"fmt"
+	"os"
+	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Ensure ScaffoldingProvider satisfies various provider interfaces.
-var _ provider.Provider = &ScaffoldingProvider{}
+// Ensure GraphDBProvider satisfies various provider interfaces.
+var _ provider.Provider = &GraphDBProvider{}
 
-// ScaffoldingProvider defines the provider implementation.
-type ScaffoldingProvider struct {
-	// version is set to the provider version on release, "dev" when the
-	// provider is built and ran locally, and "test" when running acceptance
-	// testing.
+// GraphDBProvider defines the provider implementation.
+type GraphDBProvider struct {
 	version string
 }
 
-// ScaffoldingProviderModel describes the provider data model.
-type ScaffoldingProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
+// GraphDBProviderModel describes the provider data model.
+type GraphDBProviderModel struct {
+	Address  types.String `tfsdk:"address"`
+	Username types.String `tfsdk:"username"`
+	Password types.String `tfsdk:"password"`
+	Port     types.Int64  `tfsdk:"port"`
 }
 
-func (p *ScaffoldingProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "scaffolding"
+func (p *GraphDBProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "graphdb"
 	resp.Version = p.version
 }
 
-func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *GraphDBProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "Example provider attribute",
-				Optional:            true,
+			"host": schema.StringAttribute{
+				Optional: true,
+			},
+			"username": schema.StringAttribute{
+				Optional: true,
+				Description: "This is the username for the API connection." +
+					" May also be provided via " + EnvUsername + " environment variable.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"password": schema.StringAttribute{
+				Optional:  true,
+				Sensitive: true,
+				Description: "This is the password for the API connection." +
+					" May also be provided via " + EnvPassword + " environment variable.",
+			},
+			"port": schema.Int64Attribute{
+				Optional: true,
+				Description: "This is the tcp port for the API connection." +
+					" May also be provided via " + EnvPort + " environment variable.",
+				Validators: []validator.Int64{
+					int64validator.Between(1, 65535),
+				},
 			},
 		},
 	}
 }
 
-func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data ScaffoldingProviderModel
+func (p *GraphDBProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	var config GraphDBProviderModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	diags := req.Config.Get(ctx, &config)
+
+	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
+	unknownValueErrorMessage := "The provider cannot create the GraphDB client as there is an unknown configuration value "
+	instructionUnknownMessage := " Either target apply the source of the value first, " +
+		"set the value statically in the configuration, or use the %s environment variable."
 
-	// Example client configuration for data sources and resources
-	client := http.DefaultClient
+	if config.Address.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("address"), "Unknown GraphDB Host", fmt.Sprintf("%s for the GraphDB Host. %s", unknownValueErrorMessage, fmt.Sprintf(instructionUnknownMessage, EnvAddress)))
+	}
+
+	if config.Port.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("port"), "Unknown GraphDB Port", fmt.Sprintf("%s for the GraphDB Port. %s", unknownValueErrorMessage, fmt.Sprintf(instructionUnknownMessage, EnvPort)))
+	}
+
+	if config.Username.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("username"), "Unknown GraphDB Username", fmt.Sprintf("%s for the GraphDB Username. %s", unknownValueErrorMessage, fmt.Sprintf(instructionUnknownMessage, EnvUsername)))
+	}
+
+	if config.Password.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("password"), "Unknown GraphDB Password", fmt.Sprintf("%s for the GraphDB Password. %s", unknownValueErrorMessage, fmt.Sprintf(instructionUnknownMessage, EnvPassword)))
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	address := os.Getenv(EnvAddress)
+	if !config.Address.IsNull() {
+		address = config.Address.ValueString()
+	}
+	if address == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("address"),
+			"Missing GraphDB address target",
+			"The provider cannot create the GraphDB client as there is a missing or empty value for the GraphDB address."+
+				" Set the value in the configuration or use the "+EnvAddress+" environment variable."+
+				" If either is already set, ensure the value is not empty.",
+		)
+
+		return
+	}
+
+	client := NewClient(address)
+
+	if !config.Port.IsNull() {
+		client.WithPort(int(config.Port.ValueInt64()))
+	} else if v := os.Getenv(EnvPort); v != "" {
+		d, err := strconv.Atoi(v)
+		if err != nil {
+			resp.Diagnostics.AddAttributeWarning(
+				path.Root("port"),
+				"Failed to parse "+EnvPort,
+				fmt.Sprintf("Error to parse value in "+EnvPort+" environment variable: %s\n"+
+					"So the variable is not used", err),
+			)
+		} else {
+			client.WithPort(d)
+		}
+	}
+
+	if !config.Username.IsNull() {
+		client.WithUsername(config.Username.ValueString())
+	} else if v := os.Getenv(EnvUsername); v != "" {
+		client.WithUsername(v)
+	}
+
+	if !config.Password.IsNull() {
+		client.WithPassword(config.Password.ValueString())
+	} else if v := os.Getenv(EnvPassword); v != "" {
+		client.WithPassword(v)
+	}
+
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
 
-func (p *ScaffoldingProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *GraphDBProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewExampleResource,
 	}
 }
 
-func (p *ScaffoldingProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (p *GraphDBProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewExampleDataSource,
 	}
@@ -78,7 +172,7 @@ func (p *ScaffoldingProvider) DataSources(ctx context.Context) []func() datasour
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &ScaffoldingProvider{
+		return &GraphDBProvider{
 			version: version,
 		}
 	}
