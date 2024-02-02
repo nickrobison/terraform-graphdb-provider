@@ -4,10 +4,14 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
+	"strings"
 )
 
 type Client struct {
@@ -43,8 +47,8 @@ func (c *Client) WithPassword(password string) *Client {
 	return c
 }
 
-func (c *Client) GetRepositories(ctx context.Context) ([]repositoryResponse, error) {
-	var data = []repositoryResponse{}
+func (c *Client) GetRepositories(ctx context.Context) ([]repositoryListResponse, error) {
+	var data = []repositoryListResponse{}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", c.createUrl("repositories"), nil)
 	if err != nil {
@@ -59,6 +63,62 @@ func (c *Client) GetRepositories(ctx context.Context) ([]repositoryResponse, err
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&data)
 	return data, err
+}
+
+func (c *Client) CreateRepository(ctx context.Context, input string) error {
+
+	body := &bytes.Buffer{}
+
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormField("config")
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(part, strings.NewReader(input))
+	if err != nil {
+		return err
+	}
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.createUrl("repositories"), body)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", writer.FormDataContentType())
+	_, err = c.doRequest(req)
+	// TODO: Check return code
+	return err
+}
+
+func (c *Client) GetRepository(ctx context.Context, id string) (repositoryGetResponse, error) {
+	var data = repositoryGetResponse{}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", c.createUrl("/repository/"+id), nil)
+	if err != nil {
+		return data, err
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return data, err
+	}
+	defer resp.Body.Close()
+
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&data)
+	return data, err
+}
+
+func (c *Client) DeleteRepository(ctx context.Context, id string) error {
+	req, err := http.NewRequestWithContext(ctx, "DELETE", c.createUrl("/repository/"+id), nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.doRequest(req)
+	// TODO: Check response code
+	return err
 }
 
 func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
