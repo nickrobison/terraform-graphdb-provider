@@ -11,7 +11,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"strings"
+	"os"
 )
 
 type Client struct {
@@ -71,30 +71,40 @@ func (c *Client) CreateRepository(ctx context.Context, input string) error {
 
 	writer := multipart.NewWriter(body)
 
-	part, err := writer.CreateFormField("config")
+	part, err := writer.CreateFormFile("config", input)
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(part, strings.NewReader(input))
+	f, err := os.OpenFile(input, os.O_RDONLY, 0600)
 	if err != nil {
 		return err
 	}
+	_, err = io.Copy(part, f)
+	if err != nil {
+		return err
+	}
+
 	writer.Close()
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.createUrl("repositories"), body)
 	if err != nil {
 		return err
 	}
-	req.Header.Add("Content-Type", writer.FormDataContentType())
-	_, err = c.doRequest(req)
-	// TODO: Check return code
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := c.doRequest(req)
+	if resp.StatusCode != 201 {
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Failed to create repository: %s", string(b))
+	}
 	return err
 }
 
 func (c *Client) GetRepository(ctx context.Context, id string) (repositoryGetResponse, error) {
 	var data = repositoryGetResponse{}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", c.createUrl("/repository/"+id), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", c.createUrl("repositories/"+id), nil)
 	if err != nil {
 		return data, err
 	}
@@ -111,14 +121,22 @@ func (c *Client) GetRepository(ctx context.Context, id string) (repositoryGetRes
 }
 
 func (c *Client) DeleteRepository(ctx context.Context, id string) error {
-	req, err := http.NewRequestWithContext(ctx, "DELETE", c.createUrl("/repository/"+id), nil)
+	req, err := http.NewRequestWithContext(ctx, "DELETE", c.createUrl("repositories/"+id), nil)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.doRequest(req)
-	// TODO: Check response code
-	return err
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Failed to delete repository %s. error: %s", id, string(b))
+	}
+
+	return nil
 }
 
 func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
@@ -127,5 +145,5 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 }
 
 func (c *Client) createUrl(resource string) string {
-	return fmt.Sprintf("%s:%d/rest/%s", c.address, c.port, resource)
+	return fmt.Sprintf("http://%s:%d/rest/%s", c.address, c.port, resource)
 }

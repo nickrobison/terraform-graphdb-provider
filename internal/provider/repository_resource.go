@@ -61,8 +61,12 @@ func (r *RepositoryResource) Schema(ctx context.Context, req resource.SchemaRequ
 				Description: "An identifier for the resource",
 			},
 			"name": schema.StringAttribute{
-				Computed:    true,
+				Required:    true,
 				Description: "Repository name",
+			},
+			"description": schema.StringAttribute{
+				Optional:    true,
+				Description: "Repository Description",
 			},
 			"config": schema.StringAttribute{
 				Optional:    true,
@@ -98,16 +102,17 @@ func (r *RepositoryResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 	// Read the repository back out
-	// TODO: This is unsafe because there could be a mismatch between the config file an the repo name.
+	// TODO: This is unsafe because there could be a mismatch between the config file and the repo name.
 	repo, err := r.client.GetRepository(ctx, plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create Repository", fmt.Sprintf("Failed to retrieve repository after creation. Unexpected error %e", err))
 		return
 	}
 
-	plan.ID = types.StringValue(repo.Name)
+	plan.ID = types.StringValue(repo.ID)
 	plan.Description = types.StringValue(repo.Title)
 	plan.Type = types.StringValue(repo.Type)
+	plan.Location = types.StringValue(repo.Location)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -124,10 +129,11 @@ func (r *RepositoryResource) Read(ctx context.Context, req resource.ReadRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	fmt.Println("Reading: " + state.ID.ValueString())
 
-	err := r.doRead(ctx, state.ID.ValueString(), &state)
+	err := r.doRead(ctx, state.Name.ValueString(), &state)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to read repository", fmt.Sprintf("Unable to read repository. Unexpected error: %e", err))
+		resp.Diagnostics.AddError("Failed to read repository", fmt.Sprintf("Unable to read repository. Unexpected error: %a", err))
 		return
 	}
 
@@ -148,7 +154,7 @@ func (r *RepositoryResource) Delete(ctx context.Context, req resource.DeleteRequ
 
 	err := r.client.DeleteRepository(ctx, state.ID.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Error deleting repository", fmt.Sprintf("Could not delete repository. Unexpected error: %e", err))
+		resp.Diagnostics.AddError("Error deleting repository", fmt.Sprintf("Could not delete repository. Unexpected error: %s", err.Error()))
 		return
 	}
 }
@@ -161,11 +167,10 @@ func (r *RepositoryResource) doRead(ctx context.Context, id string, data *Reposi
 	repo, err := r.client.GetRepository(ctx, id)
 	if err != nil {
 		return err
-		// 	resp.Diagnostics.AddError("Failed to create Repository", fmt.Sprintf("Failed to retrieve repository after creation. Unexpected error %e", err))
-		// 	return
 	}
 
-	data.ID = types.StringValue(repo.Name)
+	data.ID = types.StringValue(repo.ID)
+	data.Name = types.StringValue(repo.ID)
 	data.Description = types.StringValue(repo.Title)
 	data.Type = types.StringValue(repo.Type)
 	return nil

@@ -30,7 +30,7 @@ type GraphDBProvider struct {
 
 // GraphDBProviderModel describes the provider data model.
 type GraphDBProviderModel struct {
-	Address  types.String `tfsdk:"address"`
+	Host     types.String `tfsdk:"host"`
 	Username types.String `tfsdk:"username"`
 	Password types.String `tfsdk:"password"`
 	Port     types.Int64  `tfsdk:"port"`
@@ -92,8 +92,8 @@ func (p *GraphDBProvider) Configure(ctx context.Context, req provider.ConfigureR
 	instructionUnknownMessage := " Either target apply the source of the value first, " +
 		"set the value statically in the configuration, or use the %s environment variable."
 
-	if config.Address.IsUnknown() {
-		resp.Diagnostics.AddAttributeError(path.Root("address"), "Unknown GraphDB Host", fmt.Sprintf("%s for the GraphDB Host. %s", unknownValueErrorMessage, fmt.Sprintf(instructionUnknownMessage, EnvAddress)))
+	if config.Host.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("address"), "Unknown GraphDB Host", fmt.Sprintf("%s for the GraphDB Host. %s", unknownValueErrorMessage, fmt.Sprintf(instructionUnknownMessage, EnvHost)))
 	}
 
 	if config.Port.IsUnknown() {
@@ -112,16 +112,16 @@ func (p *GraphDBProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	address := os.Getenv(EnvAddress)
-	if !config.Address.IsNull() {
-		address = config.Address.ValueString()
+	address := os.Getenv(EnvHost)
+	if !config.Host.IsNull() {
+		address = config.Host.ValueString()
 	}
 	if address == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("address"),
 			"Missing GraphDB address target",
 			"The provider cannot create the GraphDB client as there is a missing or empty value for the GraphDB address."+
-				" Set the value in the configuration or use the "+EnvAddress+" environment variable."+
+				" Set the value in the configuration or use the "+EnvHost+" environment variable."+
 				" If either is already set, ensure the value is not empty.",
 		)
 
@@ -164,7 +164,7 @@ func (p *GraphDBProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 func (p *GraphDBProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewExampleResource,
+		NewRepositoryResource,
 	}
 }
 

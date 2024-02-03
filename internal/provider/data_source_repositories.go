@@ -79,7 +79,7 @@ func (d *repositoryDataSource) Schema(
 			"uri": schema.StringAttribute{
 				Computed:    true,
 				Description: "Repository URI"},
-			"externalUrl": schema.StringAttribute{
+			"external_url": schema.StringAttribute{
 				Computed:    true,
 				Description: "Repository External URL"},
 			"type": schema.StringAttribute{

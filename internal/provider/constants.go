@@ -4,7 +4,7 @@
 package provider
 
 const (
-	EnvAddress  = "GRAPHDB_ADDRESS"
+	EnvHost     = "GRAPHDB_HOST"
 	EnvPort     = "GRAPHDB_PORT"
 	EnvUsername = "GRAPHDB_USERNAME"
 	EnvPassword = "GRAPHDB_PASSWORD"

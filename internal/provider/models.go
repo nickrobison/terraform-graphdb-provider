@@ -13,7 +13,7 @@ type repositoryListResponse struct {
 }
 
 type repositoryGetResponse struct {
-	Name     string `json:"name"`
+	ID       string `json:"id"`
 	Title    string `json:"title"`
 	Type     string `json:"type"`
 	Location string `json:"location"`
