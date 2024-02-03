@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -123,15 +124,16 @@ func (r *RepositoryResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 func (r *RepositoryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+
 	var state RepositoryResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	fmt.Println("Reading: " + state.ID.ValueString())
-
-	err := r.doRead(ctx, state.Name.ValueString(), &state)
+	repoName := state.Name.ValueString()
+	tflog.Debug(ctx, "Fetching repository", map[string]any{"id": repoName})
+	err := r.doRead(ctx, repoName, &state)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read repository", fmt.Sprintf("Unable to read repository. Unexpected error: %a", err))
 		return
@@ -151,8 +153,10 @@ func (r *RepositoryResource) Delete(ctx context.Context, req resource.DeleteRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	repoId := state.ID.ValueString()
+	tflog.Debug(ctx, "Deleting repository", map[string]any{"id": repoId})
 
-	err := r.client.DeleteRepository(ctx, state.ID.ValueString())
+	err := r.client.DeleteRepository(ctx, repoId)
 	if err != nil {
 		resp.Diagnostics.AddError("Error deleting repository", fmt.Sprintf("Could not delete repository. Unexpected error: %s", err.Error()))
 		return

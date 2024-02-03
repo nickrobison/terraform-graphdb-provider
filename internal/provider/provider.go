@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure GraphDBProvider satisfies various provider interfaces.
@@ -78,6 +79,7 @@ func (p *GraphDBProvider) Schema(ctx context.Context, req provider.SchemaRequest
 }
 
 func (p *GraphDBProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	tflog.Info(ctx, "Initializing GraphDB provider")
 	var config GraphDBProviderModel
 
 	diags := req.Config.Get(ctx, &config)
@@ -112,11 +114,11 @@ func (p *GraphDBProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	address := os.Getenv(EnvHost)
+	host := os.Getenv(EnvHost)
 	if !config.Host.IsNull() {
-		address = config.Host.ValueString()
+		host = config.Host.ValueString()
 	}
-	if address == "" {
+	if host == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("address"),
 			"Missing GraphDB address target",
@@ -128,7 +130,7 @@ func (p *GraphDBProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	client := NewClient(address)
+	client := NewClient(host)
 
 	if !config.Port.IsNull() {
 		client.WithPort(int(config.Port.ValueInt64()))
@@ -146,17 +148,28 @@ func (p *GraphDBProvider) Configure(ctx context.Context, req provider.ConfigureR
 		}
 	}
 
-	if !config.Username.IsNull() {
-		client.WithUsername(config.Username.ValueString())
-	} else if v := os.Getenv(EnvUsername); v != "" {
-		client.WithUsername(v)
-	}
+	var username = ""
 
-	if !config.Password.IsNull() {
-		client.WithPassword(config.Password.ValueString())
-	} else if v := os.Getenv(EnvPassword); v != "" {
-		client.WithPassword(v)
+	if !config.Username.IsNull() {
+		username = config.Username.ValueString()
+
+	} else if v := os.Getenv(EnvUsername); v != "" {
+		username = v
 	}
+	client.WithUsername(username)
+
+	var password = ""
+	if !config.Password.IsNull() {
+		password = config.Password.ValueString()
+	} else if v := os.Getenv(EnvPassword); v != "" {
+		password = v
+	}
+	client.WithPassword(password)
+
+	ctx = tflog.SetField(ctx, "graphdb_host", host)
+	ctx = tflog.SetField(ctx, "graphdb_username", username)
+	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "graphdb_password", password)
+	tflog.Info(ctx, "Created client")
 
 	resp.DataSourceData = client
 	resp.ResourceData = client
