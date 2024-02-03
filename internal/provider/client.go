@@ -139,8 +139,92 @@ func (c *Client) DeleteRepository(ctx context.Context, id string) error {
 	return nil
 }
 
+func (c *Client) CreateUser(ctx context.Context, create userCreateRequest) error {
+	body, err := json.Marshal(create)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", c.createUrl("security/users/"+create.Username), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusCreated {
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Failed to create user. Error: %s", string(b))
+	}
+	return nil
+}
+
+func (c *Client) GetUser(ctx context.Context, username string) (userGetResponse, error) {
+	var user userGetResponse
+
+	req, err := http.NewRequestWithContext(ctx, "GET", c.createUrl("security/users/"+username), nil)
+	if err != nil {
+		return user, err
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return user, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return user, fmt.Errorf("Cannot find user with name: %s", username)
+	}
+
+	defer resp.Body.Close()
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&user)
+	return user, err
+
+}
+
+func (c *Client) UpdateUser(ctx context.Context, username string, update userCreateRequest) error {
+	body, err := json.Marshal(update)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", c.createUrl("security/users/"+username), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Failed to update user. Error: %s", string(b))
+	}
+	return nil
+}
+
+func (c *Client) DeleteUser(ctx context.Context, username string) error {
+	req, err := http.NewRequestWithContext(ctx, "DELETE", c.createUrl("security/users/"+username), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Request.Body)
+		return fmt.Errorf("Failed to delete user: %s. Error: %s", username, string(b))
+	}
+	return nil
+}
+
 func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 	req.SetBasicAuth(c.username, c.password)
+	req.Header.Set("Content-Type", "application/json")
 	return c.client.Do(req)
 }
 

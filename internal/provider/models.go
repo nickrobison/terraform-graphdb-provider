@@ -18,3 +18,15 @@ type repositoryGetResponse struct {
 	Type     string `json:"type"`
 	Location string `json:"location"`
 }
+
+type userCreateRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	//	Authorities []string `json:"grantedAuthorities"`
+}
+
+type userGetResponse struct {
+	Username    string   `json:"username"`
+	Password    string   `json:"password"`
+	Authorities []string `json:"grantedAuthorities"`
+}
