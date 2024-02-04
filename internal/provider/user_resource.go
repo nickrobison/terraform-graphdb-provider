@@ -7,14 +7,18 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
-	_ resource.Resource = &UserResource{}
+	_ resource.Resource                = &UserResource{}
+	_ resource.ResourceWithImportState = &UserResource{}
 )
 
 type UserResource struct {
@@ -66,8 +70,11 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Description: "Optional user password",
 			},
 			"role": schema.StringAttribute{
-				Optional:    true,
-				Description: "Optional user role",
+				Required:    true,
+				Description: "User role",
+				Validators: []validator.String{
+					stringvalidator.OneOf("user", "repo-manager", "admin"),
+				},
 			},
 		},
 	}
@@ -86,6 +93,9 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	request := userCreateRequest{
 		Username: username,
 		Password: plan.Password.ValueString(),
+		Authorities: []string{
+			roleToAuthority(plan.Role.ValueString()),
+		},
 	}
 	tflog.Debug(ctx, "Attempting to create user", map[string]any{"username": username})
 
@@ -133,17 +143,17 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan UserResourceModel
-	diags := req.State.Get(ctx, &plan)
+	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	username := plan.Username.ValueString()
-
 	request := userCreateRequest{
-		Username: username,
-		Password: plan.Password.ValueString(),
+		Username:    username,
+		Password:    plan.Password.ValueString(),
+		Authorities: []string{roleToAuthority(plan.Role.ValueString())},
 	}
 	tflog.Debug(ctx, "Updating user", map[string]any{"username": username})
 
@@ -183,13 +193,23 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 
 }
 
+func (r *UserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
 func (r *UserResource) doRead(ctx context.Context, username string, data *UserResourceModel) error {
 	user, err := r.client.GetUser(ctx, username)
 	if err != nil {
 		return err
 	}
 
+	role, err := authorityToRole(user.Authorities[0])
+	if err != nil {
+		return err
+	}
+
 	data.ID = types.StringValue(user.Username)
 	data.Username = types.StringValue(user.Username)
+	data.Role = types.StringValue(role)
 	return nil
 }

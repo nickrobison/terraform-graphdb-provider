@@ -20,9 +20,9 @@ type repositoryGetResponse struct {
 }
 
 type userCreateRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	//	Authorities []string `json:"grantedAuthorities"`
+	Username    string   `json:"username"`
+	Password    string   `json:"password"`
+	Authorities []string `json:"grantedAuthorities"`
 }
 
 type userGetResponse struct {

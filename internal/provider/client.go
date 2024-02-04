@@ -188,7 +188,7 @@ func (c *Client) UpdateUser(ctx context.Context, username string, update userCre
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", c.createUrl("security/users/"+username), bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, "PUT", c.createUrl("security/users/"+username), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
