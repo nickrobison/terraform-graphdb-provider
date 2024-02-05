@@ -160,6 +160,26 @@ func (c *Client) CreateUser(ctx context.Context, create userCreateRequest) error
 	return nil
 }
 
+func (c *Client) GetUsers(ctx context.Context) ([]userGetResponse, error) {
+	var users []userGetResponse
+
+	req, err := http.NewRequestWithContext(ctx, "GET", c.createUrl("security/users/"), nil)
+	if err != nil {
+		return users, err
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return users, err
+	}
+
+	defer resp.Body.Close()
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&users)
+	return users, err
+
+}
+
 func (c *Client) GetUser(ctx context.Context, username string) (userGetResponse, error) {
 	var user userGetResponse
 

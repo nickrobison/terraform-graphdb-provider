@@ -185,6 +185,7 @@ func (p *GraphDBProvider) Resources(ctx context.Context) []func() resource.Resou
 func (p *GraphDBProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewRepositoriesDataSource,
+		NewUserDataSource,
 	}
 }
 
