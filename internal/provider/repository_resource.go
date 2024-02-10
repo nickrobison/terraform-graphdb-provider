@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -96,17 +97,18 @@ func (r *RepositoryResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddAttributeError(path.Root("config"), "Empty Config", "Config cannot be empty on creation.")
 		return
 	}
+	reader := strings.NewReader(plan.Config.ValueString())
 
-	var err = r.client.CreateRepository(ctx, plan.Config.ValueString())
+	var err = r.client.CreateRepository(ctx, reader)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to create Repository", fmt.Sprintf("Failed to create repository. Unexpected error %e", err))
+		resp.Diagnostics.AddError("Failed to create Repository", fmt.Sprintf("Failed to create repository. Unexpected error %s", err.Error()))
 		return
 	}
 	// Read the repository back out
 	// TODO: This is unsafe because there could be a mismatch between the config file and the repo name.
 	repo, err := r.client.GetRepository(ctx, plan.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to create Repository", fmt.Sprintf("Failed to retrieve repository after creation. Unexpected error %e", err))
+		resp.Diagnostics.AddError("Failed to create Repository", fmt.Sprintf("Failed to retrieve repository after creation. Unexpected error %s", err.Error()))
 		return
 	}
 

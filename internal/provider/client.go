@@ -11,7 +11,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
 )
 
 type Client struct {
@@ -65,34 +64,30 @@ func (c *Client) GetRepositories(ctx context.Context) ([]repositoryListResponse,
 	return data, err
 }
 
-func (c *Client) CreateRepository(ctx context.Context, input string) error {
+func (c *Client) CreateRepository(ctx context.Context, reader io.Reader) error {
 
 	body := &bytes.Buffer{}
 
 	writer := multipart.NewWriter(body)
 
-	part, err := writer.CreateFormFile("config", input)
+	part, err := writer.CreateFormFile("config", "upload")
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(input, os.O_RDONLY, 0600)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(part, f)
+	_, err = io.Copy(part, reader)
 	if err != nil {
 		return err
 	}
 
 	writer.Close()
-
 	req, err := http.NewRequestWithContext(ctx, "POST", c.createUrl("repositories"), body)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	resp, err := c.doRequest(req)
+	req.SetBasicAuth(c.username, c.password)
+	resp, err := c.client.Do(req)
 	if resp.StatusCode != 201 {
 		defer resp.Body.Close()
 		b, _ := io.ReadAll(resp.Body)

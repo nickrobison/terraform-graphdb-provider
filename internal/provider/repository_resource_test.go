@@ -17,7 +17,7 @@ func TestAccRepositoryResource(t *testing.T) {
 				Config: providerConfig + `
 resource "graphdb_repository" "test" {
   name = "TestRepo"
-  config = "/Users/nickrobison/Downloads/TestRepo-config.ttl"
+  config = file("/Users/nickrobison/Downloads/TestRepo-config.ttl")
   description = ""
 }
 `,
