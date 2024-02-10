@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	_ resource.Resource = &RepositoryResource{}
+	_ resource.Resource                = &RepositoryResource{}
+	_ resource.ResourceWithImportState = &RepositoryResource{}
 )
 
 type RepositoryResource struct {
@@ -133,7 +134,7 @@ func (r *RepositoryResource) Read(ctx context.Context, req resource.ReadRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	repoName := state.Name.ValueString()
+	repoName := state.ID.ValueString()
 	tflog.Debug(ctx, "Fetching repository", map[string]any{"id": repoName})
 	err := r.doRead(ctx, repoName, &state)
 	if err != nil {
@@ -169,6 +170,10 @@ func (r *RepositoryResource) Update(ctx context.Context, req resource.UpdateRequ
 	// TODO: Implement
 }
 
+func (r *RepositoryResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
 func (r *RepositoryResource) doRead(ctx context.Context, id string, data *RepositoryResourceModel) error {
 	repo, err := r.client.GetRepository(ctx, id)
 	if err != nil {
@@ -179,5 +184,6 @@ func (r *RepositoryResource) doRead(ctx context.Context, id string, data *Reposi
 	data.Name = types.StringValue(repo.ID)
 	data.Description = types.StringValue(repo.Title)
 	data.Type = types.StringValue(repo.Type)
+	data.Location = types.StringValue(repo.Location)
 	return nil
 }

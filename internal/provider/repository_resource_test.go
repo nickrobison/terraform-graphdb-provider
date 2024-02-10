@@ -13,6 +13,7 @@ func TestAccRepositoryResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
+			// Test Create and Read
 			{
 				Config: providerConfig + `
 resource "graphdb_repository" "test" {
@@ -24,6 +25,13 @@ resource "graphdb_repository" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("graphdb_repository.test", "name", "TestRepo"),
 				),
+			},
+			// Test import
+			{
+				ResourceName:            "graphdb_repository.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"config"},
 			},
 		},
 	})
