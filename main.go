@@ -38,7 +38,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/nickrobison/graphdb",
+		Address: "terraform.nickrobison.com/nickrobison/graphdb",
 		Debug:   debug,
 	}
 
